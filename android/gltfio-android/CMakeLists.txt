@@ -13,6 +13,10 @@ add_library(backend STATIC IMPORTED)
 set_target_properties(backend PROPERTIES IMPORTED_LOCATION
         ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libbackend.a)
 
+add_library(camutils STATIC IMPORTED)
+set_target_properties(camutils PROPERTIES IMPORTED_LOCATION
+        ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libcamutils.a)
+
 add_library(utils STATIC IMPORTED)
 set_target_properties(utils PROPERTIES IMPORTED_LOCATION
         ${FILAMENT_DIR}/lib/${ANDROID_ABI}/libutils.a)
@@ -62,8 +66,10 @@ set(CMAKE_SHARED_LINKER_FLAGS_RELEASE "${CMAKE_SHARED_LINKER_FLAGS_RELEASE} -Wl,
 add_library(gltfio-jni SHARED
         src/main/cpp/Animator.cpp
         src/main/cpp/AssetLoader.cpp
+        src/main/cpp/Bookmark.cpp
         src/main/cpp/FilamentAsset.cpp
         src/main/cpp/KtxLoader.cpp
+        src/main/cpp/Manipulator.cpp
         src/main/cpp/MaterialProvider.cpp
         src/main/cpp/ResourceLoader.cpp
 
@@ -83,6 +89,7 @@ target_link_libraries(gltfio-jni
         backend
         filaflat
         filabridge
+        camutils
         geometry
         image
         ibl
