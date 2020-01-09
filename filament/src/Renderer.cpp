@@ -337,6 +337,7 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
                 }
             });
 
+    PrepareColorPassesData& blackboard = prepareColorPasses.getData();
 
     // We only honor the view's color buffer clear flags, depth/stencil are handled by the FrameGraph
     uint8_t viewClearFlags = view.getClearFlags() & (uint8_t)TargetBufferFlags::ALL;
@@ -347,7 +348,10 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
                                    | TargetBufferFlags::DEPTH;
 
     FrameGraphId<FrameGraphTexture> input;
-    input = colorPass(fg, prepareColorPasses.getData(), pass, clearFlags, view.getClearColor());
+    input = colorPass(fg, blackboard, pass, clearFlags, view.getClearColor());
+
+    // TODO: look for refraction draw calls only if screen-space refraction is enabled
+    input = refractionPass(fg, blackboard, pass, input, view, clearFlags);
 
     fg.simpleSideEffectPass("Finish Color Passes", [&view]() {
         // Unbind SSAO sampler, b/c the FrameGraph will delete the texture at the end of the pass.
@@ -372,37 +376,68 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
         }
     }
 
-    // We need to do special processing when rendering directly into the swap-chain (see
-    // comments below). That is when the viewRenderTarget is the default render target
-    // (mRenderTarget) and we're rendering into it.
-    if (!hasPostProcess || (!toneMapping && !fxaa && !scaled)) {
-        assert(!scaled);
-        if (viewRenderTarget == mRenderTarget) {
-            // The default render target is not multi-sampled, so we need an intermediate buffer.
-            // The intermediate buffer is accomplished with a "fake" dynamicScaling (i.e. blit)
-            // operation.
-            if (msaa > 1) {
-                input = ppm.dynamicScaling(fg, msaa, scaled, blending, input, ldrFormat);
-            }
-        }
-    } else {
-        if (blending) {
-            input = ppm.dynamicScaling(fg, msaa, scaled, blending, input, ldrFormat);
-        }
+    // We need to do special processing when rendering directly into the swap-chain, that is when
+    // the viewRenderTarget is the default render target (mRenderTarget) and we're rendering into
+    // it. This is because the default render target is not multi-sampled, so we need an
+    // intermediate buffer when MSAA is enabled.
+    // We also need an extra buffer for blending the result to the framebuffer if the view
+    // is translucent.
+    // The intermediate buffer is accomplished with a "fake" dynamicScaling (i.e. blit)
+    // operation.
+
+    const bool outputIsInput = !hasPostProcess || (!toneMapping && !fxaa && !scaled);
+    if ((outputIsInput && viewRenderTarget == mRenderTarget && msaa > 1) ||
+        (!outputIsInput && blending)) {
+        input = ppm.dynamicScaling(fg, msaa, scaled, blending, input, ldrFormat);
     }
 
     fg.present(input);
-
     fg.moveResource(fgViewRenderTarget, input);
-
     fg.compile();
     //fg.export_graphviz(slog.d);
-
     fg.execute(engine, driver);
 
-    commands.clear();
-
     recordHighWatermark(pass.getCommandsHighWatermark());
+}
+
+FrameGraphId<FrameGraphTexture> FRenderer::refractionPass(FrameGraph& fg,
+        PrepareColorPassesData& blackboard, RenderPass const& pass,
+        FrameGraphId<FrameGraphTexture> input,
+        FView const& view, TargetBufferFlags clearFlags) noexcept {
+
+    FrameGraphId<FrameGraphTexture> output = input;
+
+    // find the first refractive object
+    Command const* const refraction = std::partition_point(pass.begin(), pass.end(),
+            [](auto const& command) {
+                return (command.key & RenderPass::PASS_MASK) < uint64_t(RenderPass::Pass::REFRACT);
+            });
+
+    const bool hasScreenSpaceRefraction =
+            (refraction->key & RenderPass::PASS_MASK) == uint64_t(RenderPass::Pass::REFRACT);
+
+    if (UTILS_UNLIKELY(hasScreenSpaceRefraction)) {
+        // clear the color/depth buffers, which will orphan (and cull) the color pass
+        blackboard.color = {};
+        blackboard.depth = {};
+
+        RenderPass opaquePass(pass);
+        opaquePass.getCommands().set(
+                const_cast<Command*>(pass.begin()),
+                const_cast<Command*>(refraction));
+        output = colorPass(fg, blackboard, opaquePass, clearFlags, view.getClearColor());
+
+        // TODO: copy the color buffer into a texture, generate the mip-levels, feed the next pass
+
+        // set-up the refraction pass
+        RenderPass translucentPass(pass);
+        translucentPass.getCommands().set(
+                const_cast<Command*>(refraction),
+                const_cast<Command*>(pass.end()));
+        output = colorPass(fg, blackboard, translucentPass,TargetBufferFlags::NONE);
+    }
+
+    return output;
 }
 
 FrameGraphId<FrameGraphTexture> FRenderer::colorPass(FrameGraph& fg,

@@ -115,6 +115,11 @@ private:
             PrepareColorPassesData& blackboard, RenderPass const& pass,
             backend::TargetBufferFlags clearFlags, math::float4 clearColor = {}) noexcept;
 
+    static FrameGraphId<FrameGraphTexture> refractionPass(FrameGraph& fg,
+            PrepareColorPassesData& blackboard, RenderPass const& pass,
+            FrameGraphId<FrameGraphTexture> input,
+            FView const& view, backend::TargetBufferFlags clearFlags) noexcept;
+
     void recordHighWatermark(size_t watermark) noexcept {
         mCommandsHighWatermark = std::max(mCommandsHighWatermark, watermark);
     }

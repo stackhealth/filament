@@ -42,7 +42,7 @@ using namespace backend;
 namespace details {
 
 RenderPass::RenderPass(FEngine& engine,
-        GrowingSlice<RenderPass::Command>& commands) noexcept
+        GrowingSlice<RenderPass::Command> commands) noexcept
         : mEngine(engine), mCommands(commands),
           mCustomCommands(engine.getPerRenderPassAllocator()) {
     mCustomCommands.reserve(8); // preallocate allocate a reasonable number of custom commands
