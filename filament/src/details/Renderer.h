@@ -102,21 +102,18 @@ private:
 
     static RenderPass::CommandTypeFlags getCommandType(View::DepthPrepass prepass) noexcept;
 
-    struct PrepareColorPassesData {
-        FrameGraphId<FrameGraphTexture> ssao;
-        FrameGraphId<FrameGraphTexture> color;
-        FrameGraphId<FrameGraphTexture> depth;
+    struct ColorPassConfig {
         Viewport svp;
         backend::TextureFormat hdrFormat;
         uint8_t msaa;
     };
 
     static FrameGraphId<FrameGraphTexture> colorPass(FrameGraph& fg,
-            PrepareColorPassesData& blackboard, RenderPass const& pass,
+            ColorPassConfig const& config, RenderPass const& pass,
             backend::TargetBufferFlags clearFlags, math::float4 clearColor = {}) noexcept;
 
     static FrameGraphId<FrameGraphTexture> refractionPass(FrameGraph& fg,
-            PrepareColorPassesData& blackboard, RenderPass const& pass,
+            ColorPassConfig const& config, RenderPass const& pass,
             FrameGraphId<FrameGraphTexture> input,
             FView const& view, backend::TargetBufferFlags clearFlags) noexcept;
 
