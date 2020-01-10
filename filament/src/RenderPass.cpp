@@ -274,7 +274,7 @@ void RenderPass::setupColorCommand(Command& cmdDraw, bool hasDepthPass,
     keyBlending |= uint64_t(Pass::BLENDED);
     keyBlending |= uint64_t(CustomCommand::PASS);
 
-    bool hasScreenSpaceRefraction = ma->getRefractionMode() == RefractionMode::SCREEN_SPACE;
+    bool hasScreenSpaceRefraction = ma->getRefractionMode() == RefractionMode::CUBEMAP; /// DON'T COMMIT THAT
     bool hasBlending = !hasScreenSpaceRefraction && ma->getRasterState().hasBlending();
 
     uint64_t keyDraw = cmdDraw.key;

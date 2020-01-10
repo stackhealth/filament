@@ -406,9 +406,9 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
 FrameGraphId<FrameGraphTexture> FRenderer::refractionPass(FrameGraph& fg,
         ColorPassConfig const& config, RenderPass const& pass,
         FrameGraphId<FrameGraphTexture> input,
-        FView const& view, TargetBufferFlags clearFlags) noexcept {
+        FView const& view, TargetBufferFlags clearFlags) const noexcept {
 
-    FrameGraphId<FrameGraphTexture> output = input;
+    FrameGraphId<FrameGraphTexture> output;
 
     // find the first refractive object
     Command const* const refraction = std::partition_point(pass.begin(), pass.end(),
@@ -420,7 +420,10 @@ FrameGraphId<FrameGraphTexture> FRenderer::refractionPass(FrameGraph& fg,
             (refraction->key & RenderPass::PASS_MASK) == uint64_t(RenderPass::Pass::REFRACT);
 
     if (UTILS_UNLIKELY(hasScreenSpaceRefraction)) {
+        slog.d << "hasScreenSpaceRefraction" << io::endl;
+        PostProcessManager& ppm = mEngine.getPostProcessManager();
         // clear the color/depth buffers, which will orphan (and cull) the color pass
+        input.clear();
         fg.getBlackboard().remove("color");
         fg.getBlackboard().remove("depth");
 
@@ -428,9 +431,19 @@ FrameGraphId<FrameGraphTexture> FRenderer::refractionPass(FrameGraph& fg,
         opaquePass.getCommands().set(
                 const_cast<Command*>(pass.begin()),
                 const_cast<Command*>(refraction));
-        output = colorPass(fg, config, opaquePass, clearFlags, view.getClearColor());
+        input = colorPass(fg, config, opaquePass, clearFlags, view.getClearColor());
 
         // TODO: copy the color buffer into a texture, generate the mip-levels, feed the next pass
+        input = ppm.quadBlit(fg, false, input, fg.getDescriptor(input).format);
+
+        fg.addPass<FrameGraph::Empty>("dummy",
+                [&](FrameGraph::Builder& builder, auto& data) {
+                    builder.sideEffect();
+                    builder.read(input);
+                },
+                [](FrameGraphPassResources const& resources, auto const& data,
+                        backend::DriverApi& driver) {
+                });
 
         // set-up the refraction pass
         RenderPass translucentPass(pass);
@@ -438,6 +451,8 @@ FrameGraphId<FrameGraphTexture> FRenderer::refractionPass(FrameGraph& fg,
                 const_cast<Command*>(refraction),
                 const_cast<Command*>(pass.end()));
         output = colorPass(fg, config, translucentPass,TargetBufferFlags::NONE);
+    } else {
+        output = input;
     }
 
     return output;
