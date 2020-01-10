@@ -244,7 +244,7 @@ public class Manipulator {
     /**
      * Sets the viewport dimensions. The manipulator uses this processing grab events and raycasts.
      */
-    void setViewport(int width, int height) {
+    public void setViewport(int width, int height) {
         nSetViewport(mNativeObject, width, height);
     }
 

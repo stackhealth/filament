@@ -31,7 +31,6 @@ import com.google.android.filament.gltfio.*
 
 import java.nio.ByteBuffer
 import java.nio.channels.Channels
-import kotlin.math.*
 
 class MainActivity : Activity() {
 
@@ -45,24 +44,22 @@ class MainActivity : Activity() {
     private lateinit var surfaceView: SurfaceView
     private lateinit var uiHelper: UiHelper
     private lateinit var choreographer: Choreographer
+    private val frameScheduler = FrameCallback()
+    private val animator = ValueAnimator.ofFloat(0.0f, (2.0 * PI).toFloat())
 
-    private lateinit var engine: Engine
-    private lateinit var renderer: Renderer
-
+    // gltfio and utils objects
+    private lateinit var manipulator: Manipulator
     private lateinit var assetLoader: AssetLoader
     private lateinit var filamentAsset: FilamentAsset
 
+    // core filament objects
+    private lateinit var engine: Engine
+    private lateinit var renderer: Renderer
     private lateinit var finalScene: Scene
     private lateinit var finalView: View
     private lateinit var finalCamera: Camera
-
-    @Entity private var light = 0
-
     private var swapChain: SwapChain? = null
-
-    private val frameScheduler = FrameCallback()
-
-    private val animator = ValueAnimator.ofFloat(0.0f, (2.0 * PI).toFloat())
+    @Entity private var light = 0
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -76,6 +73,11 @@ class MainActivity : Activity() {
         uiHelper.renderCallback = SurfaceCallback()
         uiHelper.setDesiredSize(720, 1280)
         uiHelper.attachTo(surfaceView)
+
+        manipulator = Manipulator.Builder()
+                .targetPosition(0.0f, 0.0f, -4.0f)
+                .viewport(720, 1280)
+                .build(Manipulator.Mode.ORBIT)
 
         // Engine, Renderer, Scene, View, Camera
         // -------------------------------------
@@ -218,6 +220,16 @@ class MainActivity : Activity() {
         override fun doFrame(frameTimeNanos: Long) {
             choreographer.postFrameCallback(this)
 
+            var eyepos = floatArrayOf(0.0f, 0.0f, 0.0f)
+            var target = floatArrayOf(0.0f, 0.0f, 0.0f)
+            var upward = floatArrayOf(0.0f, 0.0f, 0.0f)
+            manipulator.getLookAt(eyepos, target, upward)
+
+            finalCamera.lookAt(
+                    eyepos[0].toDouble(), eyepos[1].toDouble(), eyepos[2].toDouble(),
+                    target[0].toDouble(), target[1].toDouble(), target[2].toDouble(),
+                    upward[0].toDouble(), upward[1].toDouble(), upward[2].toDouble())
+
             if (uiHelper.isReadyToRender) {
                 if (renderer.beginFrame(swapChain!!)) {
                     renderer.render(finalView)
@@ -248,6 +260,7 @@ class MainActivity : Activity() {
             finalView.viewport = Viewport(0, 0, width, height)
             val aspect = width.toDouble() / height.toDouble()
             finalCamera.setProjection(45.0, aspect, 0.5, 10000.0, Camera.Fov.VERTICAL)
+            manipulator.setViewport(width, height)
         }
     }
 
